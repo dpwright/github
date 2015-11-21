@@ -95,10 +95,12 @@ buildPath paths = '/' : intercalate "/" paths
 
 githubAPI :: (ToJSON a, Show a, FromJSON b, Show b) => BS.ByteString -> String
           -> Maybe GithubAuth -> Maybe a -> IO (Either Error b)
-githubAPI apimethod p auth body = githubConditionalAPI apimethod p auth Nothing body
+githubAPI apimethod p auth body = do
+  result <- githubConditionalAPI apimethod p auth Nothing body
+  return $ fmap snd result
 
 githubConditionalAPI :: (ToJSON a, Show a, FromJSON b, Show b) => BS.ByteString -> String
-                     -> Maybe GithubAuth -> Maybe ETag -> Maybe a -> IO (Either Error b)
+                     -> Maybe GithubAuth -> Maybe ETag -> Maybe a -> IO (Either Error (Maybe ETag, b))
 githubConditionalAPI apimethod p auth etag body = do
   result <- doHttps apimethod (apiEndpoint auth ++ p) auth etag (encodeBody body)
   case result of
@@ -108,9 +110,13 @@ githubConditionalAPI apimethod p auth etag body = do
   where
     encodeBody = Just . RequestBodyLBS . encode . toJSON
 
-    handleResp resp = either Left (\x -> jsonResultToE (LBS.pack (show x))
-                                                       (fromJSON x))
-                                 <$> handleBody resp
+    handleResp resp = either Left (\x -> either Left attachTag
+                                       (jsonResultToE (LBS.pack (show x))
+                                                      (fromJSON x)))
+                      <$> handleBody resp
+      where attachTag result = Right (ETag . BS.unpack <$> newETag, result)
+            newETag = lookup (mk $ BS.pack "ETag") $ responseHeaders resp
+
     handleBody resp = either (return . Left) (handleJson resp)
                              (parseJsonRaw (responseBody resp))
 
