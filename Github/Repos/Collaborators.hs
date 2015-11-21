@@ -31,6 +31,7 @@ isCollaboratorOn auth userName repoOwnerName reqRepoName = do
                      (apiEndpoint auth ++ buildPath ["repos", repoOwnerName, reqRepoName, "collaborators", userName])
                      Nothing
                      Nothing
+                     Nothing
    return $ either (Left . HTTPConnectionError)
                    (Right . (204 ==) . T.statusCode . C.responseStatus)
                    result

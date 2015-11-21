@@ -350,6 +350,7 @@ deleteRepo auth owner repo = do
                     (apiEndpoint (Just auth) ++ buildPath ["repos", owner, repo])
                     (Just auth)
                     Nothing
+                    Nothing
   case result of
       Left e -> return (Left (HTTPConnectionError e))
       Right resp ->

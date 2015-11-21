@@ -38,6 +38,9 @@ data GithubAuth = GithubBasicAuth BS.ByteString BS.ByteString
 
 instance NFData GithubAuth
 
+newtype ETag = ETag String deriving (Show, Data, Typeable, Eq, Ord, Generic)
+instance NFData ETag
+
 githubGet :: (FromJSON b, Show b) => [String] -> IO (Either Error b)
 githubGet = githubGet' Nothing
 
@@ -93,7 +96,7 @@ buildPath paths = '/' : intercalate "/" paths
 githubAPI :: (ToJSON a, Show a, FromJSON b, Show b) => BS.ByteString -> String
           -> Maybe GithubAuth -> Maybe a -> IO (Either Error b)
 githubAPI apimethod p auth body = do
-  result <- doHttps apimethod (apiEndpoint auth ++ p) auth (encodeBody body)
+  result <- doHttps apimethod (apiEndpoint auth ++ p) auth Nothing (encodeBody body)
   case result of
       Left e     -> return (Left (HTTPConnectionError e))
       Right resp -> either Left (\x -> jsonResultToE (LBS.pack (show x))
@@ -124,7 +127,7 @@ githubAPI apimethod p auth body = do
                              nextJson <- handleBody nextResp
                              return $ (\(Array x) -> Array (ary <> x))
                                           <$> nextJson)
-                       =<< doHttps apimethod nu auth Nothing
+                       =<< doHttps apimethod nu auth Nothing Nothing
     handleJson _ gotjson = return (Right gotjson)
 
     getNextUrl l =
@@ -137,18 +140,20 @@ githubAPI apimethod p auth body = do
 doHttps :: BS.ByteString
            -> [Char]
            -> Maybe GithubAuth
+           -> Maybe ETag
            -> Maybe RequestBody
            -> IO (Either E.SomeException (Response LBS.ByteString))
-doHttps reqMethod url auth body = do
+doHttps reqMethod url auth etag body = do
   let reqBody = fromMaybe (RequestBodyBS $ BS.pack "") body
       authHeaders = maybe [] getOAuth auth
+      etagHeaders = maybe [] getETag etag
       Just uri = parseUrl url
       request = uri { method = reqMethod
                     , secure = True
                     , port = 443
                     , requestBody = reqBody
                     , responseTimeout = Just 20000000
-                    , requestHeaders = authHeaders <>
+                    , requestHeaders = authHeaders <> etagHeaders <>
                                        [("User-Agent", "github.hs/0.7.4")]
                                        <> [("Accept", "application/vnd.github.preview")]
                     , checkStatus = successOrMissing
@@ -169,6 +174,7 @@ doHttps reqMethod url auth body = do
     getOAuth (GithubOAuth token) = [(mk (BS.pack "Authorization"),
                                      BS.pack ("token " ++ token))]
     getOAuth _ = []
+    getETag (ETag tag) = [(mk (BS.pack "If-None-Match"), BS.pack tag)]
     getResponse request = withManager $ \manager -> httpLbs request manager
 #if MIN_VERSION_http_conduit(1, 9, 0)
     successOrMissing s@(Status sci _) hs cookiejar
@@ -184,7 +190,7 @@ doHttps reqMethod url auth body = do
 
 doHttpsStatus :: BS.ByteString -> String -> GithubAuth -> Maybe RequestBody -> IO (Either Error Status)
 doHttpsStatus reqMethod p auth payload = do
-  result <- doHttps reqMethod (apiEndpoint (Just auth) ++ p) (Just auth) payload
+  result <- doHttps reqMethod (apiEndpoint (Just auth) ++ p) (Just auth) Nothing payload
   case result of
     Left e -> return (Left (HTTPConnectionError e))
     Right resp ->
@@ -231,6 +237,7 @@ githubAPIDelete auth paths = do
   result <- doHttps "DELETE"
                     (apiEndpoint (Just auth) ++ paths)
                     (Just auth)
+                    Nothing
                     Nothing
   case result of
       Left e -> return (Left (HTTPConnectionError e))
