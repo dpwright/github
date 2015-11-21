@@ -82,6 +82,38 @@ githubPut auth paths body =
             (Just auth)
             (Just body)
 
+githubGetConditional :: (FromJSON b, Show b) => Maybe GithubAuth -> Maybe ETag -> [String] -> IO (Either Error (Maybe ETag, b))
+githubGetConditional auth etag paths =
+  githubConditionalAPI (BS.pack "GET")
+                       (buildPath paths)
+                       auth
+                       etag
+                       (Nothing :: Maybe Value)
+
+githubPostConditional :: (ToJSON a, Show a, FromJSON b, Show b) => GithubAuth -> Maybe ETag -> [String] -> a -> IO (Either Error (Maybe ETag, b))
+githubPostConditional auth etag paths body =
+  githubConditionalAPI (BS.pack "POST")
+                       (buildPath paths)
+                       (Just auth)
+                       etag
+                       (Just body)
+
+githubPatchConditional :: (ToJSON a, Show a, FromJSON b, Show b) => GithubAuth -> Maybe ETag -> [String] -> a -> IO (Either Error (Maybe ETag, b))
+githubPatchConditional auth etag paths body =
+  githubConditionalAPI (BS.pack "PATCH")
+                       (buildPath paths)
+                       (Just auth)
+                       etag
+                       (Just body)
+
+githubPutConditional :: (ToJSON a, Show a, FromJSON b, Show b) => GithubAuth -> Maybe ETag -> [String] -> a -> IO (Either Error (Maybe ETag, b))
+githubPutConditional auth etag paths body =
+  githubConditionalAPI (BS.pack "PUT")
+                       (buildPath paths)
+                       (Just auth)
+                       etag
+                       (Just body)
+
 githubDelete :: GithubAuth -> [String] -> IO (Either Error ())
 githubDelete auth paths =
   githubAPIDelete auth (buildPath paths)
