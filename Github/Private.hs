@@ -141,14 +141,14 @@ doHttps :: BS.ByteString
            -> IO (Either E.SomeException (Response LBS.ByteString))
 doHttps reqMethod url auth body = do
   let reqBody = fromMaybe (RequestBodyBS $ BS.pack "") body
-      reqHeaders = maybe [] getOAuth auth
+      authHeaders = maybe [] getOAuth auth
       Just uri = parseUrl url
       request = uri { method = reqMethod
                     , secure = True
                     , port = 443
                     , requestBody = reqBody
                     , responseTimeout = Just 20000000
-                    , requestHeaders = reqHeaders <>
+                    , requestHeaders = authHeaders <>
                                        [("User-Agent", "github.hs/0.7.4")]
                                        <> [("Accept", "application/vnd.github.preview")]
                     , checkStatus = successOrMissing
