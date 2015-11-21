@@ -95,17 +95,22 @@ buildPath paths = '/' : intercalate "/" paths
 
 githubAPI :: (ToJSON a, Show a, FromJSON b, Show b) => BS.ByteString -> String
           -> Maybe GithubAuth -> Maybe a -> IO (Either Error b)
-githubAPI apimethod p auth body = do
-  result <- doHttps apimethod (apiEndpoint auth ++ p) auth Nothing (encodeBody body)
+githubAPI apimethod p auth body = githubConditionalAPI apimethod p auth Nothing body
+
+githubConditionalAPI :: (ToJSON a, Show a, FromJSON b, Show b) => BS.ByteString -> String
+                     -> Maybe GithubAuth -> Maybe ETag -> Maybe a -> IO (Either Error b)
+githubConditionalAPI apimethod p auth etag body = do
+  result <- doHttps apimethod (apiEndpoint auth ++ p) auth etag (encodeBody body)
   case result of
       Left e     -> return (Left (HTTPConnectionError e))
-      Right resp -> either Left (\x -> jsonResultToE (LBS.pack (show x))
-                                                   (fromJSON x))
-                          <$> handleBody resp
+      Right resp -> handleResp resp
 
   where
     encodeBody = Just . RequestBodyLBS . encode . toJSON
 
+    handleResp resp = either Left (\x -> jsonResultToE (LBS.pack (show x))
+                                                       (fromJSON x))
+                                 <$> handleBody resp
     handleBody resp = either (return . Left) (handleJson resp)
                              (parseJsonRaw (responseBody resp))
 
