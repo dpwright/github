@@ -135,6 +135,7 @@ Library
   -- Modules exported by the library.
   Default-Language: Haskell2010
   Exposed-modules: Github.Auth,
+                   Github.Conditional,
                    Github.Data,
                    Github.Data.Definitions,
                    Github.Data.GitData,
